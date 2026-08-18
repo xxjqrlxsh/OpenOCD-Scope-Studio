@@ -1,0 +1,56 @@
+name: Windows Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        required: true
+        default: v0.1.0
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install -r requirements-release.txt
+      - run: python -m pip install -e . --no-deps
+      - run: python -m pytest
+      - run: python -m ruff check .
+      - run: python -m ruff format --check .
+      - run: python -m PyInstaller --clean --noconfirm OpenOCD-Scope.spec
+      - name: Smoke test packaged EXE
+        shell: pwsh
+        run: |
+          $env:OPENOCD_SCOPE_SMOKE_TEST = "1"
+          $process = Start-Process -FilePath ".\dist\OpenOCD-Scope.exe" -PassThru -Wait
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+      - name: Create release archives
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release, release-stage -Force | Out-Null
+          Copy-Item dist\OpenOCD-Scope.exe, README.md, RELEASE_NOTES.md, LICENSE, THIRD_PARTY_NOTICES.md release-stage
+          Compress-Archive -Path release-stage\* -DestinationPath release\OpenOCD-Scope-Studio-0.1.0-Windows-x64.zip -CompressionLevel Optimal
+          git archive --format=zip --output release\OpenOCD-Scope-Studio-0.1.0-source.zip HEAD
+          $windows = (Get-FileHash -Algorithm SHA256 release\OpenOCD-Scope-Studio-0.1.0-Windows-x64.zip).Hash
+          $source = (Get-FileHash -Algorithm SHA256 release\OpenOCD-Scope-Studio-0.1.0-source.zip).Hash
+          @(
+            "$windows  OpenOCD-Scope-Studio-0.1.0-Windows-x64.zip"
+            "$source  OpenOCD-Scope-Studio-0.1.0-source.zip"
+          ) | Set-Content -Encoding ascii release\CHECKSUMS.txt
+      - name: Upload and publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ inputs.tag }}" release\OpenOCD-Scope-Studio-0.1.0-Windows-x64.zip release\OpenOCD-Scope-Studio-0.1.0-source.zip release\CHECKSUMS.txt --clobber
+          gh release edit "${{ inputs.tag }}" --draft=false --latest

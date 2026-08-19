@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,10 @@ class Symbol:
     address: int
     size: int
     data_type: str | None = None
+
+
+def symbol_path_parts(name: str) -> list[str]:
+    return re.findall(r"[^.\[\]]+|\[[^\]]+\]", name)
 
 
 def _attribute(die: Any, name: str, default: Any = None) -> Any:

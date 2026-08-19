@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 - 2026-08-18
+
+- Replaced the flat symbol list with expandable structure and array trees.
+- Added JSON capture export with variable types, addresses, units, and scaling metadata.
+- Kept Excel-compatible CSV export for tabular analysis.
+- Added direct EXE assets to automated GitHub releases.
+
 ## 0.1.0 - 2026-08-18
 
 - Added OpenOCD Tcl RPC sampling and target control.

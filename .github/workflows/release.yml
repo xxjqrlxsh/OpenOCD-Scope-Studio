@@ -6,7 +6,7 @@ on:
       tag:
         description: Release tag
         required: true
-        default: v0.1.0
+        default: v0.2.0
 
 permissions:
   contents: write
@@ -15,10 +15,10 @@ jobs:
   build-release:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -37,20 +37,32 @@ jobs:
       - name: Create release archives
         shell: pwsh
         run: |
+          $version = "${{ inputs.tag }}".TrimStart("v")
+          $windowsArchive = "OpenOCD-Scope-Studio-$version-Windows-x64.zip"
+          $sourceArchive = "OpenOCD-Scope-Studio-$version-source.zip"
           New-Item -ItemType Directory -Path release, release-stage -Force | Out-Null
           Copy-Item dist\OpenOCD-Scope.exe, README.md, RELEASE_NOTES.md, LICENSE, THIRD_PARTY_NOTICES.md release-stage
-          Compress-Archive -Path release-stage\* -DestinationPath release\OpenOCD-Scope-Studio-0.1.0-Windows-x64.zip -CompressionLevel Optimal
-          git archive --format=zip --output release\OpenOCD-Scope-Studio-0.1.0-source.zip HEAD
-          $windows = (Get-FileHash -Algorithm SHA256 release\OpenOCD-Scope-Studio-0.1.0-Windows-x64.zip).Hash
-          $source = (Get-FileHash -Algorithm SHA256 release\OpenOCD-Scope-Studio-0.1.0-source.zip).Hash
+          Copy-Item dist\OpenOCD-Scope.exe release\OpenOCD-Scope.exe
+          Compress-Archive -Path release-stage\* -DestinationPath "release\$windowsArchive" -CompressionLevel Optimal
+          git archive --format=zip --output "release\$sourceArchive" HEAD
+          $exe = (Get-FileHash -Algorithm SHA256 release\OpenOCD-Scope.exe).Hash
+          $windows = (Get-FileHash -Algorithm SHA256 "release\$windowsArchive").Hash
+          $source = (Get-FileHash -Algorithm SHA256 "release\$sourceArchive").Hash
           @(
-            "$windows  OpenOCD-Scope-Studio-0.1.0-Windows-x64.zip"
-            "$source  OpenOCD-Scope-Studio-0.1.0-source.zip"
+            "$exe  OpenOCD-Scope.exe"
+            "$windows  $windowsArchive"
+            "$source  $sourceArchive"
           ) | Set-Content -Encoding ascii release\CHECKSUMS.txt
+          "WINDOWS_ARCHIVE=$windowsArchive" | Add-Content $env:GITHUB_ENV
+          "SOURCE_ARCHIVE=$sourceArchive" | Add-Content $env:GITHUB_ENV
       - name: Upload and publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ inputs.tag }}" release\OpenOCD-Scope-Studio-0.1.0-Windows-x64.zip release\OpenOCD-Scope-Studio-0.1.0-source.zip release\CHECKSUMS.txt --clobber
+          gh release view "${{ inputs.tag }}" 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create "${{ inputs.tag }}" --draft --target "${{ github.sha }}" --title "OpenOCD Scope Studio ${{ inputs.tag }}" --notes-file RELEASE_NOTES.md
+          }
+          gh release upload "${{ inputs.tag }}" release\OpenOCD-Scope.exe "release\$env:WINDOWS_ARCHIVE" "release\$env:SOURCE_ARCHIVE" release\CHECKSUMS.txt --clobber
           gh release edit "${{ inputs.tag }}" --draft=false --latest

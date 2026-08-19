@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from openocd_scope.symbols import _expand_type
+from openocd_scope.symbols import _expand_type, symbol_path_parts
 
 
 @dataclass
@@ -88,3 +88,12 @@ def test_union_members_share_the_same_address_and_bitfields_are_skipped():
     symbols = _expand_type("status", 0x20000200, union, 4)
 
     assert [(item.name, item.address) for item in symbols] == [("status.raw", 0x20000200)]
+
+
+def test_symbol_path_parts_preserves_array_indices():
+    assert symbol_path_parts("channels[12].filter.state") == [
+        "channels",
+        "[12]",
+        "filter",
+        "state",
+    ]

@@ -1,6 +1,6 @@
-# OpenOCD Scope Studio 0.1.0
+# OpenOCD Scope Studio 0.2.0
 
-Initial private release for Windows 10/11 x64.
+Feature release for Windows 10/11 x64.
 
 ## Highlights
 
@@ -11,6 +11,9 @@ Initial private release for Windows 10/11 x64.
 - Searchable probe/target configurations and GD32F3 compatibility presets.
 - Dark and light themes, project persistence, and diagnostic logs.
 - Bootloader/application BIN firmware merge utility.
+- Expandable structure, nested member, and array symbol trees.
+- CSV table export and JSON export with complete variable metadata.
+- Direct standalone EXE download in addition to the complete Windows ZIP.
 
 ## Requirements
 
@@ -19,6 +22,6 @@ Initial private release for Windows 10/11 x64.
 
 ## Verification
 
-The release candidate passed 22 automated tests, Ruff checks, a real OpenOCD Tcl RPC error-handling test, and a packaged EXE startup smoke test.
+The release candidate passes the automated test suite, Ruff checks, a real OpenOCD Tcl RPC error-handling test, and a packaged EXE startup smoke test.
 
 GD32 presets have been syntax-tested with OpenOCD but still require validation on each target board and probe combination.

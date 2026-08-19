@@ -1,5 +1,7 @@
+import json
+
 from openocd_scope.models import ConnectionConfig, ProjectConfig, Variable
-from openocd_scope.storage import export_csv, load_project, save_project
+from openocd_scope.storage import export_csv, export_json, load_project, save_project
 
 
 def test_project_round_trip(tmp_path):
@@ -19,3 +21,16 @@ def test_csv_export_has_excel_bom_and_empty_cells(tmp_path):
     export_csv(str(path), [{"time_s": 0.1, "a": 2}], ["a", "b"])
     content = path.read_text(encoding="utf-8-sig")
     assert content.splitlines() == ["time_s,a,b", "0.100000,2,"]
+
+
+def test_json_export_contains_variable_metadata_and_samples(tmp_path):
+    path = tmp_path / "samples.json"
+    variable = Variable("motor.speed", 0x20000010, "float", unit="rpm")
+
+    export_json(str(path), [{"time_s": 0.1, "motor.speed": 1200.0}], [variable])
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["format"] == "openocd-scope-capture"
+    assert data["variables"][0]["address"] == "0x20000010"
+    assert data["variables"][0]["unit"] == "rpm"
+    assert data["samples"][0]["motor.speed"] == 1200.0

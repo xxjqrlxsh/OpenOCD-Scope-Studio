@@ -28,8 +28,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
@@ -41,6 +39,8 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QTabWidget,
     QToolBar,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -49,8 +49,8 @@ from .binmerge import merge_bin_files
 from .config_discovery import discover_configs, find_scripts_root
 from .models import DATA_TYPES, ConnectionConfig, ProjectConfig, Variable
 from .sampler import SamplerThread
-from .storage import export_csv, load_project, save_project
-from .symbols import Symbol, SymbolError, load_symbols
+from .storage import export_csv, export_json, load_project, save_project
+from .symbols import Symbol, SymbolError, load_symbols, symbol_path_parts
 
 COL_ENABLED = 0
 COL_NAME = 1
@@ -491,7 +491,7 @@ class MainWindow(QMainWindow):
         for title, handler in (
             ("打开项目", self.open_project),
             ("保存项目", self.save_project),
-            ("导出 CSV", self.export_data),
+            ("导出采样数据", self.export_data),
         ):
             project_menu.addAction(title).triggered.connect(handler)
         target_menu = self.menuBar().addMenu("目标")
@@ -548,7 +548,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self,
             "关于 OpenOCD Scope Studio",
-            "<h3>OpenOCD Scope Studio 0.1.0</h3>"
+            "<h3>OpenOCD Scope Studio 0.2.0</h3>"
             "<p>OpenOCD 变量监视、实时示波器与数据导出工具。</p>"
             "<p>Copyright (C) 2026 OpenOCD Scope Studio contributors</p>"
             "<p>本程序采用 GPL-3.0-only，按现状提供且不附带任何担保。"
@@ -693,14 +693,20 @@ class MainWindow(QMainWindow):
         self.symbol_search.setPlaceholderText("搜索 ELF / AXF 全局变量...")
         self.symbol_search.setClearButtonEnabled(True)
         self.symbol_search.textChanged.connect(self._filter_symbols)
-        self.symbol_list = QListWidget()
-        self.symbol_list.itemDoubleClicked.connect(self._add_symbol_item)
+        self.symbol_tree = QTreeWidget()
+        self.symbol_tree.setHeaderLabels(["符号", "类型", "地址"])
+        self.symbol_tree.setAlternatingRowColors(True)
+        self.symbol_tree.setUniformRowHeights(True)
+        self.symbol_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.symbol_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.symbol_tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.symbol_tree.itemDoubleClicked.connect(self._add_symbol_item)
         self.symbol_count = QLabel("尚未加载符号文件")
         self.symbol_count.setObjectName("muted")
         load = QPushButton("加载 Keil / IAR 符号文件")
         load.clicked.connect(self.open_symbol_file)
         layout.addWidget(self.symbol_search)
-        layout.addWidget(self.symbol_list, 1)
+        layout.addWidget(self.symbol_tree, 1)
         layout.addWidget(self.symbol_count)
         layout.addWidget(load)
         self.symbol_dock.setWidget(body)
@@ -804,8 +810,8 @@ class MainWindow(QMainWindow):
                 "QTabWidget::pane{border:1px solid #22314a;border-radius:8px;background:#0e1728;}"
                 "QTabBar::tab{background:#101a2c;color:#8395ad;padding:10px 20px;border:0;}"
                 "QTabBar::tab:selected{background:#16243a;color:#ffffff;border-bottom:2px solid #2684ff;}"
-                "QTableWidget,QListWidget{background:#0e1728;alternate-background-color:#111d30;border:1px solid #22314a;border-radius:7px;gridline-color:#1d2b42;outline:0;}"
-                "QTableWidget::item,QListWidget::item{padding:7px;}QTableWidget::item:selected,QListWidget::item:selected{background:#183b66;color:white;}"
+                "QTableWidget,QTreeWidget{background:#0e1728;alternate-background-color:#111d30;border:1px solid #22314a;border-radius:7px;gridline-color:#1d2b42;outline:0;}"
+                "QTableWidget::item,QTreeWidget::item{padding:7px;}QTableWidget::item:selected,QTreeWidget::item:selected{background:#183b66;color:white;}"
                 "QHeaderView::section{background:#16243a;color:#91a5bf;padding:8px;border:0;border-right:1px solid #22314a;font-weight:600;}"
                 "QDockWidget{color:#dce7f5;font-weight:600;}QDockWidget::title{background:#111b2e;padding:8px;border-bottom:1px solid #22314a;}"
                 "QSplitter::handle{background:#22314a;}QScrollBar{background:#0e1728;width:10px;height:10px;}QScrollBar::handle{background:#334760;border-radius:5px;}"
@@ -832,8 +838,8 @@ class MainWindow(QMainWindow):
                 "QTabWidget::pane{border:1px solid #dbe3ee;border-radius:8px;background:#ffffff;}"
                 "QTabBar::tab{background:#edf1f6;color:#64748b;padding:10px 20px;border:0;}"
                 "QTabBar::tab:selected{background:#ffffff;color:#172033;border-bottom:2px solid #1677ff;}"
-                "QTableWidget,QListWidget{background:#ffffff;alternate-background-color:#f7f9fc;border:1px solid #dbe3ee;border-radius:7px;gridline-color:#e4eaf2;outline:0;}"
-                "QTableWidget::item,QListWidget::item{padding:7px;}QTableWidget::item:selected,QListWidget::item:selected{background:#dbeafe;color:#172033;}"
+                "QTableWidget,QTreeWidget{background:#ffffff;alternate-background-color:#f7f9fc;border:1px solid #dbe3ee;border-radius:7px;gridline-color:#e4eaf2;outline:0;}"
+                "QTableWidget::item,QTreeWidget::item{padding:7px;}QTableWidget::item:selected,QTreeWidget::item:selected{background:#dbeafe;color:#172033;}"
                 "QHeaderView::section{background:#edf2f7;color:#52657d;padding:8px;border:0;border-right:1px solid #dbe3ee;font-weight:600;}"
                 "QDockWidget{color:#263548;font-weight:600;}QDockWidget::title{background:#ffffff;padding:8px;border-bottom:1px solid #dbe3ee;}"
                 "QSplitter::handle{background:#dbe3ee;}QScrollBar{background:#f3f6fa;width:10px;height:10px;}QScrollBar::handle{background:#b8c5d5;border-radius:5px;}"
@@ -928,21 +934,52 @@ class MainWindow(QMainWindow):
 
     def _filter_symbols(self) -> None:
         query = self.symbol_search.text().strip().casefold()
-        self.symbol_list.clear()
+        self.symbol_tree.clear()
+        nodes: dict[str, QTreeWidgetItem] = {}
         shown = 0
         for symbol in self.symbols:
-            if query and query not in symbol.name.casefold():
-                continue
             type_label = symbol.data_type or f"{symbol.size} byte object"
-            item = QListWidgetItem(f"{symbol.name}\n0x{symbol.address:08X}   {type_label}")
-            item.setData(Qt.UserRole, symbol)
-            self.symbol_list.addItem(item)
+            if query and query not in symbol.name.casefold() and query not in type_label.casefold():
+                continue
+            parent: QTreeWidgetItem | None = None
+            path = ""
+            for part in symbol_path_parts(symbol.name):
+                path = (
+                    f"{path}{part}" if part.startswith("[") else f"{path}.{part}" if path else part
+                )
+                item = nodes.get(path)
+                if item is None:
+                    item = QTreeWidgetItem(parent or self.symbol_tree, [part, "", ""])
+                    nodes[path] = item
+                parent = item
+            if parent is None:
+                continue
+            item = parent
+            item.setText(1, type_label)
+            item.setText(2, f"0x{symbol.address:08X}")
+            item.setData(0, Qt.UserRole, symbol)
             shown += 1
-            if shown >= 1000:
+            if shown >= 3000:
                 break
 
-    def _add_symbol_item(self, item: QListWidgetItem) -> None:
-        symbol = item.data(Qt.UserRole)
+        for item in nodes.values():
+            symbol = item.data(0, Qt.UserRole)
+            if item.childCount() and isinstance(symbol, Symbol) and symbol.data_type is None:
+                item.setData(0, Qt.UserRole, None)
+            if item.childCount():
+                font = item.font(0)
+                font.setBold(True)
+                item.setFont(0, font)
+        if query:
+            self.symbol_tree.expandAll()
+        else:
+            self.symbol_tree.expandToDepth(0)
+
+    def _add_symbol_item(self, item: QTreeWidgetItem, _column: int = 0) -> None:
+        symbol = item.data(0, Qt.UserRole)
+        if not isinstance(symbol, Symbol):
+            item.setExpanded(not item.isExpanded())
+            return
         self._show_variable_dialog(symbol)
 
     def add_variable(self) -> None:
@@ -1071,12 +1108,27 @@ class MainWindow(QMainWindow):
 
     def export_data(self) -> None:
         if not self.samples:
-            QMessageBox.information(self, "导出 CSV", "当前没有采样数据")
+            QMessageBox.information(self, "导出采样数据", "当前没有采样数据")
             return
-        path, _ = QFileDialog.getSaveFileName(self, "导出采样数据", "samples.csv", "CSV (*.csv)")
-        if path:
+        path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "导出采样数据",
+            "samples.csv",
+            "CSV 表格 (*.csv);;JSON 数据与元信息 (*.json)",
+        )
+        if not path:
+            return
+        if selected_filter.startswith("JSON") or Path(path).suffix.casefold() == ".json":
+            if not Path(path).suffix:
+                path += ".json"
+            export_json(path, list(self.samples), self.project.variables)
+            export_format = "JSON"
+        else:
+            if not Path(path).suffix:
+                path += ".csv"
             export_csv(path, list(self.samples), [item.name for item in self.project.variables])
-            self._log("INFO", f"导出 {len(self.samples)} 行数据到 {path}")
+            export_format = "CSV"
+        self._log("INFO", f"导出 {len(self.samples)} 行 {export_format} 数据到 {path}")
 
     def save_project(self) -> None:
         path, _ = QFileDialog.getSaveFileName(

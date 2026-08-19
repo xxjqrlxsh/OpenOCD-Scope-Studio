@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import csv
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
-from .models import ProjectConfig
+from .models import ProjectConfig, Variable
 
 
 def save_project(path: str, project: ProjectConfig) -> None:
@@ -27,3 +28,14 @@ def export_csv(path: str, rows: list[dict[str, float | int]], names: list[str]) 
         writer.writerow(["time_s", *names])
         for row in rows:
             writer.writerow([f"{float(row['time_s']):.6f}", *(row.get(name, "") for name in names)])
+
+
+def export_json(path: str, rows: list[dict[str, float | int]], variables: list[Variable]) -> None:
+    payload = {
+        "format": "openocd-scope-capture",
+        "version": 1,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "variables": [variable.to_dict() for variable in variables],
+        "samples": rows,
+    }
+    Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

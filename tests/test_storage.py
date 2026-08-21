@@ -1,7 +1,14 @@
 import json
 
 from openocd_scope.models import ConnectionConfig, ProjectConfig, Variable
-from openocd_scope.storage import export_csv, export_json, load_project, save_project
+from openocd_scope.storage import (
+    deserialize_connection,
+    export_csv,
+    export_json,
+    load_project,
+    save_project,
+    serialize_connection,
+)
 
 
 def test_project_round_trip(tmp_path):
@@ -34,3 +41,26 @@ def test_json_export_contains_variable_metadata_and_samples(tmp_path):
     assert data["variables"][0]["address"] == "0x20000010"
     assert data["variables"][0]["unit"] == "rpm"
     assert data["samples"][0]["motor.speed"] == 1200.0
+
+
+def test_connection_settings_round_trip_and_ignore_unknown_fields():
+    config = ConnectionConfig(
+        backend="jlink",
+        interface_config="interface/jlink.cfg",
+        target_config="target/stm32f4x.cfg",
+        transport="swd",
+        adapter_speed_khz=1000,
+        jlink_device="Cortex-M4",
+        jlink_serial=69406946,
+    )
+    serialized = serialize_connection(config)
+    data = json.loads(serialized)
+    data["future_option"] = True
+
+    restored = deserialize_connection(json.dumps(data))
+
+    assert restored == config
+
+
+def test_invalid_connection_settings_use_defaults():
+    assert deserialize_connection("not-json") == ConnectionConfig()

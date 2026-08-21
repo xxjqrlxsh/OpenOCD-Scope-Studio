@@ -1,9 +1,15 @@
-# OpenOCD Scope Studio 0.2.0
+# OpenOCD Scope Studio 0.2.1
 
-Feature release for Windows 10/11 x64.
+J-Link compatibility fix for Windows 10/11 x64.
 
 ## Highlights
 
+- Added a native SEGGER J-Link backend; no WinUSB driver replacement is required.
+- Automatically uses installed `JLink_x64.dll` for `interface/jlink.cfg`.
+- Verified native SWD connection and memory access on STM32F4 hardware.
+- Fixed J-Link + GD32F3 OpenOCD transport by selecting SWD explicitly.
+- Added the correct Cortex-M4 TAP IDs for explicit SWD and JTAG modes.
+- Connection timeout errors now include actionable OpenOCD process output.
 - OpenOCD-based live variable monitoring and online writes.
 - Keil AXF/ELF and IAR ELF/DWARF symbol loading.
 - Nested structure and array member expansion.

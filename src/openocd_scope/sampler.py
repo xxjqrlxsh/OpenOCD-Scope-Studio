@@ -6,6 +6,7 @@ import time
 
 from PySide6.QtCore import QThread, Signal
 
+from .jlink import JLinkSession, should_use_native_jlink
 from .models import ConnectionConfig, Variable
 from .openocd import OpenOcdSession
 
@@ -26,7 +27,7 @@ class SamplerThread(QThread):
         self._paused = threading.Event()
         self._writes: queue.Queue[tuple[Variable, float]] = queue.Queue()
         self._commands: queue.Queue[str] = queue.Queue()
-        self._session: OpenOcdSession | None = None
+        self._session: OpenOcdSession | JLinkSession | None = None
 
     def set_variables(self, variables: list[Variable]) -> None:
         with self._variables_lock:
@@ -46,15 +47,19 @@ class SamplerThread(QThread):
 
     def stop(self) -> None:
         self._stop_event.set()
-        if self._session is not None:
+        if isinstance(self._session, OpenOcdSession):
             self._session.client.close()
 
     def run(self) -> None:
-        session = OpenOcdSession(self.config)
+        session = (
+            JLinkSession(self.config)
+            if should_use_native_jlink(self.config)
+            else OpenOcdSession(self.config)
+        )
         self._session = session
         try:
             session.start(self._stop_event)
-            self.connected.emit(f"{self.config.host}:{self.config.tcl_port}")
+            self.connected.emit(session.description)
             started_at = time.perf_counter()
             next_sample = started_at
             while not self._stop_event.is_set():
@@ -83,7 +88,7 @@ class SamplerThread(QThread):
             self._session = None
             self.stopped.emit()
 
-    def _process_writes(self, session: OpenOcdSession) -> None:
+    def _process_writes(self, session: OpenOcdSession | JLinkSession) -> None:
         while True:
             try:
                 variable, value = self._writes.get_nowait()
@@ -94,7 +99,7 @@ class SamplerThread(QThread):
                 variable.encode(value, self.config.byte_order),
             )
 
-    def _process_commands(self, session: OpenOcdSession) -> None:
+    def _process_commands(self, session: OpenOcdSession | JLinkSession) -> None:
         while True:
             try:
                 command = self._commands.get_nowait()

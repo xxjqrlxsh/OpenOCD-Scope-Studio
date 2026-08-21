@@ -2,10 +2,26 @@ from __future__ import annotations
 
 import csv
 import json
+from dataclasses import asdict, fields
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .models import ProjectConfig, Variable
+from .models import ConnectionConfig, ProjectConfig, Variable
+
+
+def serialize_connection(config: ConnectionConfig) -> str:
+    return json.dumps(asdict(config), ensure_ascii=False)
+
+
+def deserialize_connection(value: str | None) -> ConnectionConfig:
+    if not value:
+        return ConnectionConfig()
+    try:
+        data = json.loads(value)
+        allowed = {field.name for field in fields(ConnectionConfig)}
+        return ConnectionConfig(**{key: item for key, item in data.items() if key in allowed})
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return ConnectionConfig()
 
 
 def save_project(path: str, project: ProjectConfig) -> None:

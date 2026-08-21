@@ -6,7 +6,9 @@
 
 - 启动本机 OpenOCD，或连接已运行的 Tcl RPC 服务
 - 自动定位 OpenOCD `scripts`，提供可搜索的调试器和目标芯片下拉选择
+- 使用 SEGGER 原生 DLL 连接 J-Link，无需把 Windows 驱动替换为 WinUSB
 - 内置 GD32F303/F305/F307 与 GD32F330/F350 兼容目标预设
+- J-Link 连接 GD32F3 时自动选择 SWD，也可在高级设置中显式选择 JTAG
 - 支持传输协议、适配器速度和自定义启动命令
 - 加载 Keil `AXF/ELF` 与 IAR `ELF/DWARF OUT` 全局变量符号
 - 递归展开 DWARF 结构体、嵌套结构体、联合体和数组成员，例如 `motor.pid.kp`

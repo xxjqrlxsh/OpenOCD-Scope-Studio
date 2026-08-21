@@ -49,7 +49,14 @@ from .binmerge import merge_bin_files
 from .config_discovery import discover_configs, find_scripts_root
 from .models import DATA_TYPES, ConnectionConfig, ProjectConfig, Variable
 from .sampler import SamplerThread
-from .storage import export_csv, export_json, load_project, save_project
+from .storage import (
+    deserialize_connection,
+    export_csv,
+    export_json,
+    load_project,
+    save_project,
+    serialize_connection,
+)
 from .symbols import Symbol, SymbolError, load_symbols, symbol_path_parts
 
 COL_ENABLED = 0
@@ -146,6 +153,12 @@ class ConnectionDialog(QDialog):
 
         self.interface = searchable_combo([], config.interface_config)
         self.target = searchable_combo([], config.target_config)
+        self.backend = QComboBox()
+        self.backend.addItem("自动（J-Link 使用 SEGGER 原生驱动）", "auto")
+        self.backend.addItem("SEGGER 原生 J-Link", "jlink")
+        self.backend.addItem("OpenOCD", "openocd")
+        backend_index = self.backend.findData(config.backend)
+        self.backend.setCurrentIndex(max(0, backend_index))
         self.transport = QComboBox()
         self.transport.addItems(["auto", "swd", "jtag"])
         self.transport.setCurrentText(config.transport)
@@ -175,11 +188,27 @@ class ConnectionDialog(QDialog):
         self.byte_order = QComboBox()
         self.byte_order.addItems(["little", "big"])
         self.byte_order.setCurrentText(config.byte_order)
+        self.jlink_device = QLineEdit(config.jlink_device)
+        self.jlink_device.setPlaceholderText("例如 Cortex-M4、STM32F407VG、GD32F303CC")
+        self.jlink_serial = QSpinBox()
+        self.jlink_serial.setRange(0, 999999999)
+        self.jlink_serial.setSpecialValueText("自动选择")
+        self.jlink_serial.setValue(config.jlink_serial)
+        self.jlink_dll = QLineEdit(config.jlink_dll)
+        self.jlink_dll.setPlaceholderText("留空自动查找 SEGGER JLink_x64.dll")
+        jlink_dll_row = QWidget()
+        jlink_dll_layout = QHBoxLayout(jlink_dll_row)
+        jlink_dll_layout.setContentsMargins(0, 0, 0, 0)
+        jlink_dll_layout.addWidget(self.jlink_dll)
+        browse_jlink = QPushButton("浏览")
+        browse_jlink.clicked.connect(self._browse_jlink_dll)
+        jlink_dll_layout.addWidget(browse_jlink)
         self.scan_info = QLabel()
         self.scan_info.setObjectName("muted")
 
         form = QFormLayout(self)
         form.setSpacing(12)
+        form.addRow("通信后端", self.backend)
         form.addRow("OpenOCD 程序", executable_row)
         form.addRow("调试器 / Probe", self.interface)
         form.addRow("目标芯片 / Target", self.target)
@@ -192,6 +221,9 @@ class ConnectionDialog(QDialog):
         form.addRow("采样周期", self.interval)
         form.addRow("历史窗口", self.history)
         form.addRow("目标字节序", self.byte_order)
+        form.addRow("J-Link 目标设备", self.jlink_device)
+        form.addRow("J-Link 序列号", self.jlink_serial)
+        form.addRow("J-Link DLL", jlink_dll_row)
         form.addRow("配置扫描", self.scan_info)
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         buttons.button(QDialogButtonBox.Save).setText("应用设置")
@@ -217,6 +249,13 @@ class ConnectionDialog(QDialog):
             self.executable.setText(path)
             self._scan_configs()
 
+    def _browse_jlink_dll(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择 SEGGER J-Link DLL", "", "J-Link DLL (JLink_x64.dll JLinkARM.dll)"
+        )
+        if path:
+            self.jlink_dll.setText(path)
+
     def _scan_configs(self) -> None:
         executable = self.executable.text().strip()
         interfaces = discover_configs(executable, "interface")
@@ -238,6 +277,7 @@ class ConnectionDialog(QDialog):
 
     def config(self) -> ConnectionConfig:
         return ConnectionConfig(
+            backend=str(self.backend.currentData()),
             executable=self.executable.text().strip(),
             interface_config=self.interface.currentText().strip(),
             target_config=self.target.currentText().strip(),
@@ -251,6 +291,9 @@ class ConnectionDialog(QDialog):
             sample_interval_ms=self.interval.value(),
             history_seconds=self.history.value(),
             byte_order=self.byte_order.currentText(),
+            jlink_device=self.jlink_device.text().strip() or "Cortex-M4",
+            jlink_dll=self.jlink_dll.text().strip(),
+            jlink_serial=self.jlink_serial.value(),
         )
 
 
@@ -445,7 +488,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("OpenOCD Scope Studio")
         self.resize(1460, 880)
         self.setMinimumSize(1050, 650)
-        self.project = ProjectConfig()
+        self.settings = QSettings("OpenOCD Scope", "Studio")
+        saved_connection = self.settings.value("connection", "", type=str)
+        self.project = ProjectConfig(connection=deserialize_connection(saved_connection))
         self.symbols: list[Symbol] = []
         self.samples: deque[dict[str, float | int]] = deque()
         self.sample_arrivals: deque[float] = deque()
@@ -456,7 +501,6 @@ class MainWindow(QMainWindow):
         self._paused = False
         self._error_count = 0
         self.floating_scope: ScopeFloatingWindow | None = None
-        self.settings = QSettings("OpenOCD Scope", "Studio")
         self.theme = str(self.settings.value("theme", "dark"))
         if self.theme not in {"dark", "light"}:
             self.theme = "dark"
@@ -548,7 +592,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self,
             "关于 OpenOCD Scope Studio",
-            "<h3>OpenOCD Scope Studio 0.2.0</h3>"
+            "<h3>OpenOCD Scope Studio 0.2.1</h3>"
             "<p>OpenOCD 变量监视、实时示波器与数据导出工具。</p>"
             "<p>Copyright (C) 2026 OpenOCD Scope Studio contributors</p>"
             "<p>本程序采用 GPL-3.0-only，按现状提供且不附带任何担保。"
@@ -898,6 +942,7 @@ class MainWindow(QMainWindow):
         self.project.connection.interface_config = self.quick_interface.currentText().strip()
         self.project.connection.target_config = self.quick_target.currentText().strip()
         self.project.connection.sample_interval_ms = self.quick_interval.value()
+        self._save_connection_settings()
 
     def configure_connection(self) -> None:
         if self.worker and self.worker.isRunning():
@@ -907,6 +952,7 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             self.project.connection = dialog.config()
             self._sync_quick_controls()
+            self._save_connection_settings()
             self._log("INFO", "连接与采集设置已更新")
 
     def _sync_quick_controls(self) -> None:
@@ -1050,7 +1096,7 @@ class MainWindow(QMainWindow):
         self.status_connection.setText("已连接")
         self._paused = False
         self.pause_button.setText("暂停采样")
-        self._log("SUCCESS", f"OpenOCD Tcl RPC 已连接: {endpoint}")
+        self._log("SUCCESS", f"调试后端已连接: {endpoint}")
 
     def _disconnected(self) -> None:
         self.connect_button.setEnabled(True)
@@ -1171,6 +1217,7 @@ class MainWindow(QMainWindow):
             self.disconnect_target()
         self.project = project
         self.symbols = symbols
+        self._save_connection_settings()
         self.clear_data()
         self._sync_quick_controls()
         self._filter_symbols()
@@ -1350,11 +1397,15 @@ class MainWindow(QMainWindow):
         if self.worker:
             self.worker.set_variables(copy.deepcopy(self.project.variables))
 
+    def _save_connection_settings(self) -> None:
+        self.settings.setValue("connection", serialize_connection(self.project.connection))
+
     def _log(self, level: str, message: str) -> None:
         timestamp = datetime.now(timezone.utc).astimezone().strftime("%H:%M:%S.%f")[:-3]
         self.log_view.appendPlainText(f"{timestamp}  {level:<7}  {message}")
 
     def closeEvent(self, event) -> None:
+        self._save_connection_settings()
         if self.floating_scope is not None:
             self._restore_scope_page()
         self.disconnect_target()

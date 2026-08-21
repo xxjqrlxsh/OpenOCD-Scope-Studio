@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(0, 2, 0, 0),
-    prodvers=(0, 2, 0, 0),
+    filevers=(0, 2, 1, 0),
+    prodvers=(0, 2, 1, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -14,12 +14,12 @@ VSVersionInfo(
       StringTable('040904B0', [
         StringStruct('CompanyName', 'xxjqrlxsh'),
         StringStruct('FileDescription', 'OpenOCD variable monitor and oscilloscope'),
-        StringStruct('FileVersion', '0.2.0'),
+        StringStruct('FileVersion', '0.2.1'),
         StringStruct('InternalName', 'OpenOCD-Scope'),
         StringStruct('LegalCopyright', 'Copyright (C) 2026 OpenOCD Scope Studio contributors'),
         StringStruct('OriginalFilename', 'OpenOCD-Scope.exe'),
         StringStruct('ProductName', 'OpenOCD Scope Studio'),
-        StringStruct('ProductVersion', '0.2.0'),
+        StringStruct('ProductVersion', '0.2.1'),
       ])
     ]),
     VarFileInfo([VarStruct('Translation', [0x0409, 1200])]),

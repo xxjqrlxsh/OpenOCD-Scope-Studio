@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 - 2026-08-20
+
+- Added a native SEGGER J-Link backend that works with the standard Windows driver.
+- Automatically selects the native backend for `interface/jlink.cfg`.
+- Fixed J-Link connections to built-in GD32F3 targets when OpenOCD is forced.
+- Added transport-specific SWD and JTAG TAP IDs for GD32F303/F305/F307.
+- Added complete OpenOCD process output to connection timeout errors.
+
 ## 0.2.0 - 2026-08-18
 
 - Replaced the flat symbol list with expandable structure and array trees.

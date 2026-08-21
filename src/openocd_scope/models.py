@@ -62,6 +62,7 @@ class Variable:
 
 @dataclass
 class ConnectionConfig:
+    backend: str = "auto"
     executable: str = "openocd"
     interface_config: str = "interface/stlink.cfg"
     target_config: str = "target/stm32f4x.cfg"
@@ -75,6 +76,9 @@ class ConnectionConfig:
     sample_interval_ms: int = 50
     history_seconds: int = 60
     byte_order: str = "little"
+    jlink_device: str = "Cortex-M4"
+    jlink_dll: str = ""
+    jlink_serial: int = 0
 
 
 @dataclass

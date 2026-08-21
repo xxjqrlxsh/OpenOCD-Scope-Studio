@@ -5,10 +5,12 @@ numpy==2.4.6
 packaging==26.3
 pefile==2024.8.26
 pluggy==1.6.0
+psutil==7.2.2
 pyelftools==0.33
 Pygments==2.20.0
 pyinstaller==6.22.1
 pyinstaller-hooks-contrib==2026.6
+pylink-square==2.0.1
 pyqtgraph==0.14.0
 PySide6==6.11.1
 PySide6_Addons==6.11.1
@@ -17,3 +19,4 @@ pytest==9.1.1
 pywin32-ctypes==0.2.3
 ruff==0.16.3
 shiboken6==6.11.1
+six==1.17.0

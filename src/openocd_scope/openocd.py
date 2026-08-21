@@ -100,14 +100,19 @@ class OpenOcdSession:
         self._output: deque[str] = deque(maxlen=200)
         self._output_thread: threading.Thread | None = None
 
+    @property
+    def description(self) -> str:
+        return f"OpenOCD Tcl RPC {self.config.host}:{self.config.tcl_port}"
+
     def start(self, cancel_event: threading.Event | None = None) -> None:
         if self.config.launch_process:
             executable = str(Path(self.config.executable).expanduser())
             args = [executable]
             if self.config.interface_config:
                 args.extend(["-f", self._resolve_config(self.config.interface_config)])
-            if self.config.transport != "auto":
-                args.extend(["-c", f"transport select {self.config.transport}"])
+            transport = self._effective_transport()
+            if transport is not None:
+                args.extend(["-c", f"transport select {transport}"])
             if self.config.adapter_speed_khz > 0:
                 args.extend(["-c", f"adapter speed {self.config.adapter_speed_khz}"])
             if self.config.target_config:
@@ -148,7 +153,18 @@ class OpenOcdSession:
                 else:
                     time.sleep(0.2)
         self.stop()
-        raise OpenOcdError(f"Timed out connecting to Tcl RPC: {last_error}")
+        output = "".join(self._output).strip()
+        details = f"Timed out connecting to Tcl RPC: {last_error}"
+        if output:
+            details += f"\n\nOpenOCD output:\n{output[-4000:]}"
+        raise OpenOcdError(details)
+
+    def _effective_transport(self) -> str | None:
+        if self.config.transport != "auto":
+            return self.config.transport
+        if self.config.target_config.startswith("builtin/gd32f3"):
+            return "swd"
+        return None
 
     @staticmethod
     def _resolve_config(config: str) -> str:
